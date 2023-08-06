@@ -143,6 +143,7 @@ func (app *application) callbackHandler(w http.ResponseWriter, r *http.Request) 
 		Secure:   true,
 		Path:     "/",
 		Expires:  t.ExpiryTime,
+		SameSite: http.SameSiteNoneMode,
 	}
 	http.SetCookie(w, sessionCookie)
 

@@ -97,12 +97,9 @@ func parseFlags(cfg *config) {
 	flag.StringVar(&cfg.google.clientSecret, "google-cient-secret", os.Getenv("GOOGLE_CLIENT_SECRET"), "Google Client Secret")
 	flag.StringVar(&cfg.google.redirectURL, "google-redirect-url", os.Getenv("GOOGLE_REDIRECT_URL"), "Google Redirect URL")
 
+	cfg.cors.allowedOrigins = []string{"http://localhost:3000"}
 	flag.Func("allowed-origins", "A list of allowed origins", func(s string) error {
-		origins := "http://localhost:3000"
-		if s != "" {
-			origins = s
-		}
-		cfg.cors.allowedOrigins = strings.Split(origins, " ")
+		cfg.cors.allowedOrigins = strings.Split(s, " ")
 		return nil
 	})
 
