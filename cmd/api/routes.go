@@ -13,7 +13,7 @@ func (app *application) routes() http.Handler {
 	router.NotFound = http.HandlerFunc(app.notFoundResponse)
 	router.MethodNotAllowed = http.HandlerFunc(app.methodNotAllowedResponse)
 
-	corsMw := alice.New(app.enableCORS)
+	corsMw := alice.New(app.logRequest, app.enableCORS)
 	authMw := alice.New(app.isAuthenticated)
 
 	// authentication
@@ -27,14 +27,21 @@ func (app *application) routes() http.Handler {
 	router.Handler(http.MethodPost, "/v1/users/:userID/follow", authMw.Then(http.HandlerFunc(app.followUserHandler)))
 	router.Handler(http.MethodDelete, "/v1/users/:userID/unfollow", authMw.Then(http.HandlerFunc(app.unfollowUserHandler)))
 
+	// messages
+	router.Handler(http.MethodGet, "/v1/messages", authMw.Then(http.HandlerFunc(app.getMessagesHandler)))
+
+	// dms
+	router.Handler(http.MethodPost, "/v1/dms", authMw.Then(http.HandlerFunc(app.createDMHandler)))
+
 	// logged in user routes
 	router.Handler(http.MethodGet, "/v1/me", authMw.Then(http.HandlerFunc(app.getLoggedInUserHandler)))
 	router.Handler(http.MethodGet, "/v1/me/following", authMw.Then(http.HandlerFunc(app.getUsersForRelationHandler)))
 	router.Handler(http.MethodGet, "/v1/me/friends", authMw.Then(http.HandlerFunc(app.getUsersForRelationHandler)))
 	router.Handler(http.MethodGet, "/v1/me/followers", authMw.Then(http.HandlerFunc(app.getUsersForRelationHandler)))
+	router.Handler(http.MethodGet, "/v1/me/dms", authMw.Then(http.HandlerFunc(app.getUserDMList)))
 
 	// websocket
-	router.HandlerFunc(http.MethodGet, "/ws", app.wsHandler) 
+	router.Handler(http.MethodGet, "/ws", authMw.Then(http.HandlerFunc(app.wsHandler)))
 
 	return corsMw.Then(router)
 }

@@ -3,10 +3,10 @@ package data
 import (
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -30,9 +30,9 @@ type SearchUserResp struct {
 }
 
 type BasicUserResp struct {
-	ID             string `json:"id"`
-	Username       string `json:"username"`
-	Avatar         string `json:"avatar"`
+	ID       string `json:"id"`
+	Username string `json:"username"`
+	Avatar   string `json:"avatar"`
 }
 
 type Relation int
@@ -128,8 +128,8 @@ func (m *UserModel) GetUsers(ctx context.Context, userID, username string) ([]*S
 	err = rows.Err()
 	if err != nil {
 		switch {
-		case errors.Is(err, sql.ErrNoRows):
-		  return users, nil
+		case errors.Is(err, pgx.ErrNoRows):
+			return users, nil
 		}
 		return nil, err
 	}
@@ -153,13 +153,12 @@ func (m *UserModel) UnfollowUser(ctx context.Context, followingID, followerID st
 	return err
 }
 
-
-func (m *UserModel) GetUsersForRelation(ctx context.Context, relation Relation, userID string) ([]*BasicUserResp, error)  {
+func (m *UserModel) GetUsersForRelation(ctx context.Context, relation Relation, userID string) ([]*BasicUserResp, error) {
 	var stmt string
 
 	switch relation {
 	case RelationFriends:
-	 stmt = `
+		stmt = `
 		SELECT u.id, u.username, u.avatar
 		FROM users u
 		JOIN follow_relations fr1 ON u.id = fr1.following_id
@@ -168,13 +167,13 @@ func (m *UserModel) GetUsersForRelation(ctx context.Context, relation Relation, 
 		WHERE fr1.follower_id = $1;
 		`
 	case RelationFollowing:
-	 stmt = `
+		stmt = `
 		SELECT id, username, avatar FROM users u
 		INNER JOIN follow_relations fr ON
 		fr.follower_id = $1 AND fr.following_id = u.id
 		`
 	case RelationFollowers:
-	 stmt = `
+		stmt = `
 		SELECT id, username, avatar FROM users u
 		INNER JOIN follow_relations fr ON
 		fr.follower_id = u.id AND fr.following_id = $1

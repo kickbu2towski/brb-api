@@ -13,18 +13,18 @@ import (
 const ScopeAuthentication = "authentication"
 
 type Token struct {
-	PlainText string `json:"token"`
-	Hash []byte `json:"-"`
-	Scope string `json:"-"`
-	UserID string `json:"-"`
+	PlainText  string    `json:"token"`
+	Hash       []byte    `json:"-"`
+	Scope      string    `json:"-"`
+	UserID     string    `json:"-"`
 	ExpiryTime time.Time `json:"expiry_time"`
 }
 
 func NewToken(userID string, ttl time.Duration, scope string) (*Token, error) {
 	token := &Token{
 		ExpiryTime: time.Now().Add(ttl),
-		UserID: userID,
-		Scope: scope,
+		UserID:     userID,
+		Scope:      scope,
 	}
 
 	b := make([]byte, 32)

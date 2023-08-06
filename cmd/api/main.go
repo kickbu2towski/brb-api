@@ -19,14 +19,14 @@ type application struct {
 	config config
 	pool   *pgxpool.Pool
 	models *data.Models
-	hub *Hub
+	hub    *Hub
 }
 
 type config struct {
 	port   string
 	dsn    string
 	webURL string
-	cors struct {
+	cors   struct {
 		allowedOrigins []string
 	}
 	google struct {
@@ -47,12 +47,13 @@ func main() {
 		logger.Fatal(err)
 	}
 
+	models := data.NewModels(pool)
 	app := application{
 		logger: logger,
 		config: cfg,
 		pool:   pool,
-		models: data.NewModels(pool),
-		hub: NewHub(),
+		models: models,
+		hub:    NewHub(models),
 	}
 
 	server := &http.Server{
@@ -90,14 +91,18 @@ func getPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 func parseFlags(cfg *config) {
 	flag.StringVar(&cfg.port, "port", "6969", "API server port")
 	flag.StringVar(&cfg.dsn, "dsn", os.Getenv("POSTGRES_DSN"), "PostgreSQL DSN")
-	flag.StringVar(&cfg.webURL, "web-url", os.Getenv("WEB_URL"), "Frontend URL")
+	flag.StringVar(&cfg.webURL, "web-url", "http://localhost:3000", "Frontend URL")
 
 	flag.StringVar(&cfg.google.clientID, "google-client-id", os.Getenv("GOOGLE_CLIENT_ID"), "Google Client ID")
 	flag.StringVar(&cfg.google.clientSecret, "google-cient-secret", os.Getenv("GOOGLE_CLIENT_SECRET"), "Google Client Secret")
 	flag.StringVar(&cfg.google.redirectURL, "google-redirect-url", os.Getenv("GOOGLE_REDIRECT_URL"), "Google Redirect URL")
 
 	flag.Func("allowed-origins", "A list of allowed origins", func(s string) error {
-		cfg.cors.allowedOrigins = strings.Split(s, " ")
+		origins := "http://localhost:3000"
+		if s != "" {
+			origins = s
+		}
+		cfg.cors.allowedOrigins = strings.Split(origins, " ")
 		return nil
 	})
 

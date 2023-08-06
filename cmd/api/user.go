@@ -41,7 +41,7 @@ func (app *application) followUserHandler(w http.ResponseWriter, r *http.Request
 	err := app.models.Users.FollowUser(context.Background(), followingID, user.ID)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
-		return 
+		return
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"message": "followed user successfully"}, nil)
@@ -61,7 +61,7 @@ func (app *application) unfollowUserHandler(w http.ResponseWriter, r *http.Reque
 	err := app.models.Users.UnfollowUser(context.Background(), followingID, user.ID)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
-		return 
+		return
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"message": "unfollowed user successfully"}, nil)
@@ -73,16 +73,16 @@ func (app *application) unfollowUserHandler(w http.ResponseWriter, r *http.Reque
 func (app *application) getUsersForRelationHandler(w http.ResponseWriter, r *http.Request) {
 	s := strings.Split(r.URL.Path, "/")
 	var relation data.Relation
-	switch s[len(s) - 1] {
+	switch s[len(s)-1] {
 	case "friends":
-	  relation = data.RelationFriends
+		relation = data.RelationFriends
 	case "following":
-	  relation = data.RelationFollowing
+		relation = data.RelationFollowing
 	case "followers":
-	  relation = data.RelationFollowers
+		relation = data.RelationFollowers
 	default:
 		app.badRequestResponse(w, r, "invalid relation path")
-	  return
+		return
 	}
 
 	user := app.getUserContext(r)
@@ -114,6 +114,19 @@ func (app *application) getUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) getUserDMList(w http.ResponseWriter, r *http.Request) {
+	user := app.getUserContext(r)
+	users, err := app.models.DMs.GetDMListForUser(context.Background(), user.ID)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	err = app.writeJSON(w, http.StatusOK, envelope{"users": users}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

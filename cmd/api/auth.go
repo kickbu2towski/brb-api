@@ -121,10 +121,10 @@ func (app *application) callbackHandler(w http.ResponseWriter, r *http.Request) 
 	err = app.models.Users.AddUser(context.Background(), user)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
-		return 
+		return
 	}
 
-	t, err := data.NewToken(user.ID, 24 * time.Hour, data.ScopeAuthentication)
+	t, err := data.NewToken(user.ID, 24*time.Hour, data.ScopeAuthentication)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -137,12 +137,12 @@ func (app *application) callbackHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	sessionCookie := &http.Cookie{
-		Name: "sessionID",
-		Value: t.PlainText,
+		Name:     "sessionID",
+		Value:    t.PlainText,
 		HttpOnly: true,
-		Secure: true,
-		Path: "/",
-		Expires: t.ExpiryTime,
+		Secure:   true,
+		Path:     "/",
+		Expires:  t.ExpiryTime,
 	}
 	http.SetCookie(w, sessionCookie)
 
@@ -159,12 +159,12 @@ func (app *application) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sessionCookie := &http.Cookie{
-		Name: "sessionID",
-		Value: "",
+		Name:     "sessionID",
+		Value:    "",
 		HttpOnly: true,
-		Secure: true,
-		Path: "/",
-		Expires: time.Unix(0, 0),
+		Secure:   true,
+		Path:     "/",
+		Expires:  time.Unix(0, 0),
 	}
 	http.SetCookie(w, sessionCookie)
 

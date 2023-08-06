@@ -10,13 +10,21 @@ import (
 	"github.com/kickbu2towski/brb-api/internal/data"
 )
 
+func (app *application) logRequest(next http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		app.logger.Printf("method: %s, path: %s, origin: %s", r.Method, r.URL.Path, r.Header.Get("Origin"))
+		next.ServeHTTP(w, r)
+	}
+	return http.HandlerFunc(fn)
+}
+
 func (app *application) isAuthenticated(next http.Handler) http.Handler {
-	fn := func (w http.ResponseWriter, r *http.Request) {
+	fn := func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("sessionID")
 		if err != nil {
 			switch {
 			case errors.Is(err, http.ErrNoCookie):
-			  app.badRequestResponse(w, r, "unauthorized")
+				app.badRequestResponse(w, r, "unauthorized")
 			default:
 				app.serverErrorResponse(w, r, err)
 			}
@@ -37,7 +45,7 @@ func (app *application) isAuthenticated(next http.Handler) http.Handler {
 
 // TODO: vary header
 func (app *application) enableCORS(next http.Handler) http.Handler {
-	fn := func (w http.ResponseWriter, r *http.Request) {
+	fn := func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("origin")
 		allowedOrigins := app.config.cors.allowedOrigins
 
@@ -69,7 +77,7 @@ func enableCORS(next http.Handler) http.Handler {
 		origin := w.Header().Get("Origin")
 		origins := strings.Split(os.Getenv("ALLOWED_ORIGINS"), " ")
 
-	  for _, og := range origins {
+		for _, og := range origins {
 			if og == origin {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 

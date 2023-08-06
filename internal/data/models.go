@@ -3,8 +3,10 @@ package data
 import "github.com/jackc/pgx/v5/pgxpool"
 
 type Models struct {
-	Users UserModel
-	Tokens TokenModel
+	Users    UserModel
+	Messages MessageModel
+	Tokens   TokenModel
+	DMs      DMModel
 }
 
 func NewModels(pool *pgxpool.Pool) *Models {
@@ -13,6 +15,12 @@ func NewModels(pool *pgxpool.Pool) *Models {
 			Pool: pool,
 		},
 		Tokens: TokenModel{
+			Pool: pool,
+		},
+		Messages: MessageModel{
+			Pool: pool,
+		},
+		DMs: DMModel{
 			Pool: pool,
 		},
 	}
