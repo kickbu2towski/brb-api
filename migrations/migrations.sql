@@ -27,13 +27,18 @@ CREATE TABLE IF NOT EXISTS dms (
   participants text[] NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS reactions (
+  id SERIAL PRIMARY KEY,
+  reaction TEXT NOT NULL,
+  user_id TEXT REFERENCES users (id),
+  message_id TEXT REFERENCES messages(id)
+);
 
 CREATE TABLE IF NOT EXISTS messages (
   id           TEXT PRIMARY KEY,
   content      TEXT NOT NULL,
   user_id      TEXT NOT NULL REFERENCES users(id),
   dm_id        INTEGER NOT NULL REFERENCES dms(id),
-  reactions    JSONB,
   created_at   TIMESTAMP(0) WITH TIME ZONE NOT NULL,
   is_deleted   BOOLEAN DEFAULT FALSE,
   is_edited    BOOLEAN DEFAULT FALSE,

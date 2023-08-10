@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 
@@ -11,16 +10,21 @@ import (
 	"github.com/kickbu2towski/brb-api/internal/data"
 )
 
+type BroadcastMessage struct {
+	BroadcastTo []string       `json:"broadcastTo"`
+	Data        map[string]any `json:"data"`
+}
+
 type Hub struct {
 	clients   map[*Client]bool
-	broadcast chan map[string]any
+	broadcast chan *BroadcastMessage
 	models    *data.Models
 }
 
 func NewHub(models *data.Models) *Hub {
 	return &Hub{
 		clients:   make(map[*Client]bool),
-		broadcast: make(chan map[string]any),
+		broadcast: make(chan *BroadcastMessage),
 		models:    models,
 	}
 }
@@ -29,8 +33,7 @@ func (h *Hub) run() {
 	for {
 		msg := <-h.broadcast
 		for client := range h.clients {
-			bc, _ := GetBroadcastTo(msg)
-			allowed := Includes(bc, client.user.ID)
+			allowed := Includes(msg.BroadcastTo, client.user.ID)
 			if allowed {
 				err := client.conn.WriteJSON(msg)
 				if err != nil {
@@ -48,74 +51,73 @@ type Client struct {
 	conn *websocket.Conn
 }
 
-func (c *Client) save(e *data.Event) error {
+func (c *Client) save(e *data.Event) (string, error) {
+	var msgID string
 	b, err := json.Marshal(e.Payload)
 	if err != nil {
-		log.Println("error marshalling payload:", err)
-		return err
+		return msgID, err
 	}
 
 	switch e.Type {
 	case "Create":
 		var m data.Message
-		m.UserID = c.user.ID
-		err := json.Unmarshal(b, &m)
+		err = json.Unmarshal(b, &m)
 		if err != nil {
-			log.Println("error: dm payload: unmarshalling:", err)
-			return err
+			return msgID, err
 		}
+		msgID = m.ID
+		m.UserID = c.user.ID
 		err = c.hub.models.Messages.InsertMessage(context.Background(), &m)
 		if err != nil {
-			log.Println("error: dm payload: inserting:", err)
-			return err
+			return msgID, err
 		}
 	case "Edit", "Delete", "Reaction":
 		ctx := context.Background()
 
+		var err error
 		var payload struct {
-			ID        string
-			Content   string
-			Reactions string
+			ID       string `json:"id"`
+			Content  string `json:"content"`
+			Reaction string `json:"reaction"`
+			ToRemove bool   `json:"toRemove"`
 		}
 
-		err := json.Unmarshal(b, &payload)
+		err = json.Unmarshal(b, &payload)
 		if err != nil {
-			log.Println("error: edit payload: unmarshalling:", err)
-			return err
+			return msgID, err
 		}
 
-		msg, err := c.hub.models.Messages.GetMessage(ctx, payload.ID)
-		if err != nil {
-			log.Println("error: edit payload: getting message:", err)
-			return err
-		}
-		if msg.UserID != c.user.ID {
-			return fmt.Errorf("forbidden")
-		}
+		msgID = payload.ID
 
-		if e.Type == "Edit" {
-			msg.Content = payload.Content
-			msg.IsEdited = true
-		} else if e.Type == "Reaction" {
-			var reactions map[string][]string
-			err := json.Unmarshal([]byte(payload.Reactions), &reactions)
+		if e.Type != "Reaction" {
+			msg, err := c.hub.models.Messages.GetMessage(ctx, payload.ID, c.user.ID)
 			if err != nil {
-				log.Println("error: unmarshalling reactions:", err)
-				return err
+				return msgID, err
 			}
-			msg.Reactions = reactions
-		} else if e.Type == "Delete" {
-			msg.IsDeleted = true
+			if e.Type == "Edit" {
+				msg.Content = payload.Content
+				msg.IsEdited = true
+			} else if e.Type == "Delete" {
+				msg.IsDeleted = true
+			}
+			err = c.hub.models.Messages.UpdateMessage(ctx, payload.ID, msg)
+			if err != nil {
+				return msgID, err
+			}
+		} else {
+			if payload.ToRemove {
+				err = c.hub.models.Reactions.Delete(ctx, payload.Reaction, payload.ID, c.user.ID)
+			} else {
+				err = c.hub.models.Reactions.Insert(ctx, payload.Reaction, payload.ID, c.user.ID)
+			}
 		}
 
-		err = c.hub.models.Messages.UpdateMessage(ctx, payload.ID, msg)
 		if err != nil {
-			log.Println("error: edit payload: updating message:", err)
-			return err
+			return msgID, err
 		}
 	}
 
-	return nil
+	return msgID, nil
 }
 
 func (c *Client) read() {
@@ -123,23 +125,58 @@ func (c *Client) read() {
 		delete(c.hub.clients, c)
 	}()
 	for {
-		var msg map[string]any
-		err := c.conn.ReadJSON(&msg)
+		_, wsMsg, err := c.conn.ReadMessage()
 		if err != nil {
-			log.Println("error: reading ws json:", err)
+			log.Println("error: reading ws message:", err)
 			break
 		}
 
-		e, ok := (msg["event"]).(string)
-		if ok && e == "DMEvent" {
-			m, _ := GetMessageEvent(msg)
-			err = c.save(m)
+		var msg map[string]any
+		err = json.Unmarshal(wsMsg, &msg)
+		if err != nil {
+			log.Println("error: unmarshalling ws message as map:", err)
+			break
+		}
+
+		event, ok := msg["event"].(string)
+		if !ok {
+			log.Println("error: missing event type in ws message")
+			break
+		}
+
+		if event == "DMEvent" {
+			var e data.Event
+			err := json.Unmarshal(wsMsg, &e)
 			if err != nil {
-				log.Println("error: saving ws json:", err)
+				log.Println("error: unmarshalling ws message as DMEvent:", err)
 				break
 			}
+			if e.UserID != c.user.ID {
+				log.Println("forbidden")
+				break
+			}
+
+			msgID, err := c.save(&e)
+			m, err := c.hub.models.Messages.GetMessage(context.Background(), msgID, "")
+			if err != nil {
+				log.Println("error: getting message after saving DMEvent:", err)
+				break
+			}
+
+			if err != nil {
+				log.Println("error: saving DMEvent from ws message:", err)
+				break
+			}
+
+			c.hub.broadcast <- &BroadcastMessage{
+				BroadcastTo: GetBroadcastTo(msg),
+				Data: map[string]any{
+					"event":   "DMEvent",
+					"type":    "Publish",
+					"payload": m,
+				},
+			}
 		}
-		c.hub.broadcast <- msg
 	}
 }
 

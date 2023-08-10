@@ -26,7 +26,7 @@ func GetMessageEvent(event map[string]any) (*data.Event, error) {
 	return &m, nil
 }
 
-func GetBroadcastTo(event map[string]any) ([]string, error) {
+func GetBroadcastTo(event map[string]any) []string {
 	var bc []string
 	if b, ok := (event["broadcastTo"]).([]any); ok {
 		for _, v := range b {
@@ -36,7 +36,7 @@ func GetBroadcastTo(event map[string]any) ([]string, error) {
 			}
 		}
 	}
-	return bc, nil
+	return bc
 }
 
 func Filter(items []any, predicate func(item string) bool) []any {

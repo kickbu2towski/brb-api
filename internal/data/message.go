@@ -9,54 +9,58 @@ import (
 )
 
 type Message struct {
-	ID        string              `json:"id"`
-	Content   string              `json:"content"`
-	DmID      int                 `json:"dm_id"`
-	UserID    string              `json:"user_id,omitempty"`
-	CreatedAt time.Time           `json:"created_at"`
-	IsDeleted bool                `json:"is_deleted"`
-	IsEdited  bool                `json:"is_edited"`
-	ReplyToID null.String         `json:"reply_to_id"`
-	Reactions map[string][]string `json:"reactions"`
+	ID        string      `json:"id"`
+	Content   string      `json:"content"`
+	DmID      int         `json:"dm_id"`
+	UserID    string      `json:"user_id,omitempty"`
+	CreatedAt time.Time   `json:"created_at"`
+	IsDeleted bool        `json:"is_deleted"`
+	IsEdited  bool        `json:"is_edited"`
+	ReplyToID null.String `json:"reply_to_id"`
 }
 
-type MessagesResp struct {
+type MessageResp struct {
 	Message
-	User BasicUserResp `json:"user"`
+	User      BasicUserResp       `json:"user"`
+	Reactions map[string][]string `json:"reactions"`
 }
 
 type MessageModel struct {
 	Pool *pgxpool.Pool
 }
 
-func (m *MessageModel) GetMessages(ctx context.Context, dmID int) ([]*MessagesResp, error) {
+func (m *MessageModel) GetMessages(ctx context.Context, dmID int) ([]*MessageResp, error) {
 	stmt := `
 	  SELECT 
-		sq.id, sq.content, sq.dm_id, sq.created_at,
-		sq.is_deleted, sq.is_edited, sq.reply_to_id, sq.reactions,
-		sq.user_id, sq.username, sq.avatar
+		sq3.id, sq3.content, sq3.dm_id, sq3.created_at,
+		sq3.is_deleted, sq3.is_edited, sq3.reply_to_id,
+		sq3.user_id, sq3.username, sq3.avatar, sq3.reactions
 		FROM (
 			SELECT m.id, m.content, m.dm_id, m.created_at, 
-			m.is_deleted, m.is_edited, m.reply_to_id, m.reactions,
-			m.user_id, u.username, u.avatar
+			m.is_deleted, m.is_edited, m.reply_to_id,
+			m.user_id, u.username, u.avatar, reactions
 			FROM messages m
 			JOIN users u ON m.user_id = u.id
+			LEFT JOIN (
+				SELECT message_id, json_object_agg(reaction, user_ids) AS reactions FROM
+				(SELECT message_id, reaction, json_agg(r.user_id) AS user_ids FROM reactions  r
+				GROUP BY reaction, message_id) AS sq1 GROUP BY message_id 
+			) sq2 ON sq2.message_id = m.id 
 			WHERE dm_id = $1
 			ORDER BY created_at DESC
 			LIMIT 50
-		) AS sq
-		ORDER BY sq.created_at ASC;
+		) AS sq3
+		ORDER BY sq3.created_at ASC
   `
 
-	messages := make([]*MessagesResp, 0)
+	messages := make([]*MessageResp, 0)
 	rows, err := m.Pool.Query(ctx, stmt, dmID)
 	if err != nil {
 		return messages, err
 	}
 
 	for rows.Next() {
-		var message MessagesResp
-
+		var message MessageResp
 		err := rows.Scan(
 			&message.ID,
 			&message.Content,
@@ -65,15 +69,14 @@ func (m *MessageModel) GetMessages(ctx context.Context, dmID int) ([]*MessagesRe
 			&message.IsDeleted,
 			&message.IsEdited,
 			&message.ReplyToID,
-			&message.Reactions,
 			&message.User.ID,
 			&message.User.Username,
 			&message.User.Avatar,
+			&message.Reactions,
 		)
 		if err != nil {
 			return messages, err
 		}
-
 		messages = append(messages, &message)
 	}
 
@@ -85,34 +88,48 @@ func (m *MessageModel) GetMessages(ctx context.Context, dmID int) ([]*MessagesRe
 	return messages, nil
 }
 
-func (m *MessageModel) GetMessage(ctx context.Context, id string) (*Message, error) {
+func (m *MessageModel) GetMessage(ctx context.Context, id, userID string) (*MessageResp, error) {
+	var withUserID int
+	if userID == "" {
+		withUserID = 1
+	}
+
 	stmt := `
 	  SELECT 
-			id, 
-			content, 
-			dm_id,
-			user_id, 
-			created_at, 
-			is_deleted, 
-			is_edited, 
-			reply_to_id, 
-			reactions
-		FROM messages
-		WHERE id = $1`
+			m.id, 
+			m.content, 
+			m.dm_id,
+			m.created_at, 
+			m.is_deleted, 
+			m.is_edited, 
+			m.reply_to_id,
+			u.id AS user_id, 
+			u.username, 
+			u.avatar, 
+			sq2.reactions
+		FROM messages m
+		JOIN users u ON u.id = m.user_id
+		LEFT JOIN (
+			SELECT message_id, json_object_agg(reaction, user_ids) AS reactions FROM 
+				(SELECT r.message_id, r.reaction, json_agg(r.user_id) AS user_ids FROM reactions r
+				  GROUP BY reaction, message_id) sq1 GROUP BY message_id
+		) sq2 ON m.id = message_id
+		WHERE m.id = $1 AND (u.id = $2 OR 1 = $3)`
 
-	var message Message
-	err := m.Pool.QueryRow(ctx, stmt, id).Scan(
+	var message MessageResp
+	err := m.Pool.QueryRow(ctx, stmt, id, userID, withUserID).Scan(
 		&message.ID,
 		&message.Content,
 		&message.DmID,
-		&message.UserID,
 		&message.CreatedAt,
 		&message.IsDeleted,
 		&message.IsEdited,
 		&message.ReplyToID,
+		&message.User.ID,
+		&message.User.Username,
+		&message.User.Avatar,
 		&message.Reactions,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -133,18 +150,17 @@ func (m *MessageModel) InsertMessage(ctx context.Context, msg *Message) error {
 	return err
 }
 
-func (m *MessageModel) UpdateMessage(ctx context.Context, id string, msg *Message) error {
+func (m *MessageModel) UpdateMessage(ctx context.Context, id string, msg *MessageResp) error {
 	args := []any{
 		msg.Content,
 		msg.IsDeleted,
 		msg.IsEdited,
-		msg.Reactions,
 		id,
 	}
 	stmt := `
 	  UPDATE messages
-		SET content = $1, is_deleted = $2, is_edited = $3, reactions = $4
-		WHERE id = $5
+		SET content = $1, is_deleted = $2, is_edited = $3
+		WHERE id = $4
 	`
 	_, err := m.Pool.Exec(ctx, stmt, args...)
 	return err
