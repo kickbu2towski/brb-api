@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -88,6 +89,9 @@ func (c *Client) save(e *data.Event) error {
 			log.Println("error: edit payload: getting message:", err)
 			return err
 		}
+		if msg.UserID != c.user.ID {
+			return fmt.Errorf("forbidden")
+		}
 
 		if e.Type == "Edit" {
 			msg.Content = payload.Content
@@ -134,8 +138,8 @@ func (c *Client) read() {
 				log.Println("error: saving ws json:", err)
 				break
 			}
-			c.hub.broadcast <- msg
 		}
+		c.hub.broadcast <- msg
 	}
 }
 
