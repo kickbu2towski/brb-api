@@ -221,3 +221,20 @@ func (m *UserModel) GetUser(ctx context.Context, userID string) (*BasicUserResp,
 	}
 	return &u, nil
 }
+
+func (m *UserModel) IsFriends(ctx context.Context, participants []int) (bool, error) {
+	var isFriends bool
+	stmt := `
+		SELECT CASE WHEN COUNT(*) > 0 THEN TRUE ELSE FALSE END AS are_friends
+		FROM follow_relations AS f1
+		JOIN follow_relations AS f2 
+		ON f1.following_id = f2.follower_id AND f1.follower_id = f2.following_id
+		WHERE (f1.following_id = $1 AND f1.follower_id = $2)
+			 OR (f1.following_id = $2 AND f1.follower_id = $1);
+	`
+	err := m.Pool.QueryRow(ctx, stmt, participants[0], participants[1]).Scan(&isFriends)
+	if err != nil {
+		return false, err
+	}
+	return isFriends, nil
+}

@@ -23,7 +23,12 @@ CREATE TABLE IF NOT EXISTS follow_relations (
 
 CREATE TABLE IF NOT EXISTS dms (
   id SERIAL PRIMARY KEY,
-  participants integer[] NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS dm_participants (
+  dm_id INTEGER REFERENCES dms(id),
+  participant_id INTEGER REFERENCES users(id),
+  last_read_message_id TEXT REFERENCES messages(id)
 );
 
 CREATE TABLE IF NOT EXISTS messages (

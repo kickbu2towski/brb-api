@@ -144,6 +144,21 @@ func (c *Client) read() {
 				break
 			}
 
+			if len(e.BroadcastTo) != 2 {
+				log.Println("error: broadcastTo length mismatch")
+				break
+			}
+
+			isFriends, err := c.hub.models.Users.IsFriends(context.Background(), e.BroadcastTo)
+			if err != nil {
+				log.Println("error: checking whether broadcastTo participants are friends", err)
+				break
+			}
+			if !isFriends {
+				log.Println("participants should be friends")
+				break
+			}
+
 			msgID, err := c.save(&e)
 			m, err := c.hub.models.Messages.GetMessage(context.Background(), msgID, -1)
 			if err != nil {
