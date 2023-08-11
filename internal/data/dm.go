@@ -17,7 +17,7 @@ type DMModel struct {
 	Pool *pgxpool.Pool
 }
 
-func (m *DMModel) GetDMListForUser(ctx context.Context, userID string) ([]*BasicUserResp, error) {
+func (m *DMModel) GetDMListForUser(ctx context.Context, userID int) ([]*BasicUserResp, error) {
 	stmt := `
     SELECT id, username, avatar FROM users u
     WHERE u.id in 
@@ -61,7 +61,7 @@ func (m *DMModel) GetDMListForUser(ctx context.Context, userID string) ([]*Basic
 	return users, nil
 }
 
-func (m *DMModel) GetDMForParticipants(ctx context.Context, participants []string) (int, error) {
+func (m *DMModel) GetDMForParticipants(ctx context.Context, participants []int) (int, error) {
 	stmt := `SELECT id FROM dms WHERE participants <@ $1`
 	var (
 		dmID      int

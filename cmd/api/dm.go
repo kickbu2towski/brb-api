@@ -7,7 +7,7 @@ import (
 
 func (app *application) createDMHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Participants []string `json:"participants"`
+		Participants []int `json:"participants"`
 	}
 
 	err := app.readJSON(r, &input)

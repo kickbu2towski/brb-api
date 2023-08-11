@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
@@ -31,14 +32,14 @@ func (app *application) getUsersHandler(w http.ResponseWriter, r *http.Request) 
 
 func (app *application) followUserHandler(w http.ResponseWriter, r *http.Request) {
 	params := httprouter.ParamsFromContext(r.Context())
-	followingID := params.ByName("userID")
-	if followingID == "" {
-		app.badRequestResponse(w, r, "missing required param: userID")
+	followingID, err := strconv.Atoi(params.ByName("userID"))
+	if err != nil {
+		app.badRequestResponse(w, r, "missing or invalid param: userID")
 		return
 	}
 
 	user := app.getUserContext(r)
-	err := app.models.Users.FollowUser(context.Background(), followingID, user.ID)
+	err = app.models.Users.FollowUser(context.Background(), followingID, user.ID)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -52,13 +53,13 @@ func (app *application) followUserHandler(w http.ResponseWriter, r *http.Request
 
 func (app *application) unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
 	params := httprouter.ParamsFromContext(r.Context())
-	followingID := params.ByName("userID")
-	if followingID == "" {
+	followingID, err := strconv.Atoi(params.ByName("userID"))
+	if err != nil {
 		app.badRequestResponse(w, r, "missing required param: userID")
 		return
 	}
 	user := app.getUserContext(r)
-	err := app.models.Users.UnfollowUser(context.Background(), followingID, user.ID)
+	err = app.models.Users.UnfollowUser(context.Background(), followingID, user.ID)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return

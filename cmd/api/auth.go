@@ -99,8 +99,6 @@ func (app *application) callbackHandler(w http.ResponseWriter, r *http.Request) 
 	var userInfo struct {
 		ID            string `json:"id"`
 		Name          string `json:"name"`
-		Email         string `json:"email"`
-		VerifiedEmail bool   `json:"verified_email"`
 		Picture       string `json:"picture"`
 	}
 
@@ -111,20 +109,18 @@ func (app *application) callbackHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	user := &data.User{
-		ID:            userInfo.ID,
+		GID:           userInfo.ID,
 		Username:      userInfo.Name,
-		Email:         userInfo.Email,
-		EmailVerified: userInfo.VerifiedEmail,
 		Avatar:        userInfo.Picture,
 	}
 
-	err = app.models.Users.AddUser(context.Background(), user)
+	userID, err := app.models.Users.AddUser(context.Background(), user)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
-	t, err := data.NewToken(user.ID, 24*time.Hour, data.ScopeAuthentication)
+	t, err := data.NewToken(userID, 24*time.Hour, data.ScopeAuthentication)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return

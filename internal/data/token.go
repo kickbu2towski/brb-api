@@ -16,11 +16,11 @@ type Token struct {
 	PlainText  string    `json:"token"`
 	Hash       []byte    `json:"-"`
 	Scope      string    `json:"-"`
-	UserID     string    `json:"-"`
+	UserID     int    `json:"-"`
 	ExpiryTime time.Time `json:"expiry_time"`
 }
 
-func NewToken(userID string, ttl time.Duration, scope string) (*Token, error) {
+func NewToken(userID int, ttl time.Duration, scope string) (*Token, error) {
 	token := &Token{
 		ExpiryTime: time.Now().Add(ttl),
 		UserID:     userID,
@@ -51,7 +51,7 @@ func (m *TokenModel) Insert(ctx context.Context, t *Token) error {
 	return err
 }
 
-func (m *TokenModel) DeleteForUser(ctx context.Context, id, scope string) error {
+func (m *TokenModel) DeleteForUser(ctx context.Context, id int, scope string) error {
 	// this will logout the user from all the devices
 	stmt := `DELETE FROM tokens WHERE user_id = $1 AND scope = $2`
 	_, err := m.Pool.Exec(ctx, stmt, id, scope)

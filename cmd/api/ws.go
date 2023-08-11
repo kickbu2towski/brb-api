@@ -11,7 +11,7 @@ import (
 )
 
 type BroadcastMessage struct {
-	BroadcastTo []string       `json:"broadcastTo"`
+	BroadcastTo []int       `json:"broadcastTo"`
 	Data        map[string]any `json:"data"`
 }
 
@@ -131,33 +131,21 @@ func (c *Client) read() {
 			break
 		}
 
-		var msg map[string]any
-		err = json.Unmarshal(wsMsg, &msg)
+		var e data.Event
+		err = json.Unmarshal(wsMsg, &e)
 		if err != nil {
-			log.Println("error: unmarshalling ws message as map:", err)
+			log.Println("error: unmarshalling ws message as DMEvent:", err)
 			break
 		}
 
-		event, ok := msg["event"].(string)
-		if !ok {
-			log.Println("error: missing event type in ws message")
-			break
-		}
-
-		if event == "DMEvent" {
-			var e data.Event
-			err := json.Unmarshal(wsMsg, &e)
-			if err != nil {
-				log.Println("error: unmarshalling ws message as DMEvent:", err)
-				break
-			}
+		if e.Name == "DMEvent" {
 			if e.UserID != c.user.ID {
 				log.Println("forbidden")
 				break
 			}
 
 			msgID, err := c.save(&e)
-			m, err := c.hub.models.Messages.GetMessage(context.Background(), msgID, "")
+			m, err := c.hub.models.Messages.GetMessage(context.Background(), msgID, -1)
 			if err != nil {
 				log.Println("error: getting message after saving DMEvent:", err)
 				break
@@ -169,10 +157,9 @@ func (c *Client) read() {
 			}
 
 			c.hub.broadcast <- &BroadcastMessage{
-				BroadcastTo: GetBroadcastTo(msg),
+				BroadcastTo: e.BroadcastTo,
 				Data: map[string]any{
-					"event":   "DMEvent",
-					"type":    "Publish",
+					"name":   "PublishEvent",
 					"payload": m,
 				},
 			}

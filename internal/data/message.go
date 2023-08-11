@@ -12,7 +12,7 @@ type Message struct {
 	ID        string      `json:"id"`
 	Content   string      `json:"content"`
 	DmID      int         `json:"dm_id"`
-	UserID    string      `json:"user_id,omitempty"`
+	UserID    int      `json:"user_id,omitempty"`
 	CreatedAt time.Time   `json:"created_at"`
 	IsDeleted bool        `json:"is_deleted"`
 	IsEdited  bool        `json:"is_edited"`
@@ -22,7 +22,7 @@ type Message struct {
 type MessageResp struct {
 	Message
 	User      BasicUserResp       `json:"user"`
-	Reactions map[string][]string `json:"reactions"`
+	Reactions map[string][]int `json:"reactions"`
 }
 
 type MessageModel struct {
@@ -88,9 +88,9 @@ func (m *MessageModel) GetMessages(ctx context.Context, dmID int) ([]*MessageRes
 	return messages, nil
 }
 
-func (m *MessageModel) GetMessage(ctx context.Context, id, userID string) (*MessageResp, error) {
+func (m *MessageModel) GetMessage(ctx context.Context, id string, userID int) (*MessageResp, error) {
 	var withUserID int
-	if userID == "" {
+	if userID == -1 {
 		withUserID = 1
 	}
 

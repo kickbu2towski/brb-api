@@ -11,16 +11,15 @@ import (
 )
 
 type User struct {
-	ID            string `json:"id"`
+	ID            int `json:"id"`
+	GID           string `json:"-"`
 	Username      string `json:"username"`
-	Email         string `json:"email"`
-	EmailVerified bool   `json:"email_verified"`
 	Avatar        string `json:"avatar"`
 	Bio           string `json:"bio"`
 }
 
 type SearchUserResp struct {
-	ID             string `json:"id"`
+	ID             int `json:"id"`
 	Username       string `json:"username"`
 	Avatar         string `json:"avatar"`
 	FollowingCount int    `json:"following_count"`
@@ -30,7 +29,7 @@ type SearchUserResp struct {
 }
 
 type BasicUserResp struct {
-	ID       string `json:"id"`
+	ID       int `json:"id"`
 	Username string `json:"username"`
 	Avatar   string `json:"avatar"`
 }
@@ -47,38 +46,42 @@ type UserModel struct {
 	Pool *pgxpool.Pool
 }
 
-func (m *UserModel) AddUser(ctx context.Context, u *User) error {
+func (m *UserModel) AddUser(ctx context.Context, u *User) (int, error) {
+	var userID int
 	stmt := `
-		INSERT INTO users(id, username, email, email_verified, avatar) 
+		INSERT INTO users(gid, username, avatar) 
 		VALUES
-	    ($1, $2, $3, $4, $5) 
-	  ON CONFLICT (id) DO UPDATE SET 
+	    ($1, $2, $3) 
+	  ON CONFLICT (gid) DO UPDATE SET 
 			username = excluded.username, 
-			email = excluded.email, 
-			email_verified = excluded.email_verified, 
 			avatar = excluded.avatar
 	  RETURNING id
 	`
-	args := []any{u.ID, u.Username, u.Email, u.EmailVerified, u.Avatar}
-	_, err := m.Pool.Exec(ctx, stmt, args...)
-	return err
+	args := []any{u.GID, u.Username, u.Avatar}
+
+	err := m.Pool.QueryRow(ctx, stmt, args...).Scan(&userID)
+	if err != nil {
+		return userID, err
+	}
+
+	return userID, nil
 }
 
 func (m *UserModel) GetUserForToken(ctx context.Context, token, scope string) (*User, error) {
 	hash := sha256.Sum256([]byte(token))
 
-	stmt := `SELECT id, username, email, email_verified, avatar, bio FROM users u 
+	stmt := `SELECT id, username, avatar, bio FROM users u 
 	 LEFT JOIN tokens t ON t.user_id = u.id WHERE t.hash = $1 AND scope = $2 AND t.expiry_time >= CURRENT_TIMESTAMP`
 
 	var u User
-	err := m.Pool.QueryRow(ctx, stmt, hash[:], scope).Scan(&u.ID, &u.Username, &u.Email, &u.EmailVerified, &u.Avatar, &u.Bio)
+	err := m.Pool.QueryRow(ctx, stmt, hash[:], scope).Scan(&u.ID, &u.Username, &u.Avatar, &u.Bio)
 	if err != nil {
 		return nil, err
 	}
 	return &u, nil
 }
 
-func (m *UserModel) GetUsers(ctx context.Context, userID, username string) ([]*SearchUserResp, error) {
+func (m *UserModel) GetUsers(ctx context.Context, userID int, username string) ([]*SearchUserResp, error) {
 	stmt := `
 		SELECT
 			u.id,
@@ -137,7 +140,7 @@ func (m *UserModel) GetUsers(ctx context.Context, userID, username string) ([]*S
 	return users, nil
 }
 
-func (m *UserModel) FollowUser(ctx context.Context, followingID, followerID string) error {
+func (m *UserModel) FollowUser(ctx context.Context, followingID, followerID int) error {
 	stmt := `
 	 INSERT INTO follow_relations(following_id, follower_id) VALUES($1, $2)
 	`
@@ -145,7 +148,7 @@ func (m *UserModel) FollowUser(ctx context.Context, followingID, followerID stri
 	return err
 }
 
-func (m *UserModel) UnfollowUser(ctx context.Context, followingID, followerID string) error {
+func (m *UserModel) UnfollowUser(ctx context.Context, followingID, followerID int) error {
 	stmt := `
 	 DELETE FROM follow_relations WHERE following_id = $1 AND follower_id = $2
 	`
@@ -153,7 +156,7 @@ func (m *UserModel) UnfollowUser(ctx context.Context, followingID, followerID st
 	return err
 }
 
-func (m *UserModel) GetUsersForRelation(ctx context.Context, relation Relation, userID string) ([]*BasicUserResp, error) {
+func (m *UserModel) GetUsersForRelation(ctx context.Context, relation Relation, userID int) ([]*BasicUserResp, error) {
 	var stmt string
 
 	switch relation {
