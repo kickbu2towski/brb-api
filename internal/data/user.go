@@ -8,28 +8,30 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"gopkg.in/guregu/null.v4"
 )
 
 type User struct {
-	ID            int `json:"id"`
-	GID           string `json:"-"`
-	Username      string `json:"username"`
-	Avatar        string `json:"avatar"`
-	Bio           string `json:"bio"`
+	ID       int    `json:"id"`
+	GID      string `json:"-"`
+	Username string `json:"username"`
+	Avatar   string `json:"avatar"`
+	Bio      string `json:"bio"`
 }
 
 type SearchUserResp struct {
-	ID             int `json:"id"`
-	Username       string `json:"username"`
-	Avatar         string `json:"avatar"`
-	FollowingCount int    `json:"following_count"`
-	FollowersCount int    `json:"followers_count"`
-	IsFollowing    bool   `json:"is_following"`
-	IsFriend       bool   `json:"is_friend"`
+	ID             int      `json:"id"`
+	Username       string   `json:"username"`
+	Avatar         string   `json:"avatar"`
+	FollowingCount int      `json:"following_count"`
+	FollowersCount int      `json:"followers_count"`
+	FriendsCount   null.Int `json:"friends_count"`
+	IsFollowing    bool     `json:"is_following"`
+	IsFriend       bool     `json:"is_friend"`
 }
 
 type BasicUserResp struct {
-	ID       int `json:"id"`
+	ID       int    `json:"id"`
 	Username string `json:"username"`
 	Avatar   string `json:"avatar"`
 }
@@ -87,8 +89,9 @@ func (m *UserModel) GetUsers(ctx context.Context, userID int, username string) (
 			u.id,
 			u.username,
 			u.avatar,
-			COUNT(fr1.follower_id) AS followers_count,
-			COUNT(fr2.following_id) AS following_count,
+			(SELECT COUNT(*) FROM follow_relations fr1 WHERE fr1.following_id = u.id) AS followers_count,
+			(SELECT COUNT(*) FROM follow_relations fr2 WHERE fr2.follower_id = u.id) AS following_count,
+			sq.friends_count,
 			EXISTS (
 				SELECT 1 FROM follow_relations fr3
 				WHERE fr3.follower_id = $1 AND fr3.following_id = u.id
@@ -102,14 +105,16 @@ func (m *UserModel) GetUsers(ctx context.Context, userID int, username string) (
       ) AS is_friend
 		FROM
 			users u
-		LEFT JOIN
-			follow_relations fr1 ON u.id = fr1.following_id
-		LEFT JOIN
-			follow_relations fr2 ON u.id = fr2.follower_id
+		LEFT JOIN (
+			SELECT
+				f6.following_id AS user_id,
+				COUNT(*) AS friends_count
+			FROM follow_relations f6
+			JOIN follow_relations f7 ON f6.following_id = f7.follower_id AND f6.follower_id = f7.following_id
+			GROUP BY user_id
+		) sq ON sq.user_id = u.id
     WHERE
 	    u.username ilike $2 AND u.id <> $1
-		GROUP BY
-			u.id;
 	`
 
 	rows, err := m.Pool.Query(ctx, stmt, userID, fmt.Sprintf("%%%s%%", username))
@@ -121,7 +126,7 @@ func (m *UserModel) GetUsers(ctx context.Context, userID int, username string) (
 	users := make([]*SearchUserResp, 0)
 	for rows.Next() {
 		var u SearchUserResp
-		err := rows.Scan(&u.ID, &u.Username, &u.Avatar, &u.FollowersCount, &u.FollowingCount, &u.IsFollowing, &u.IsFriend)
+		err := rows.Scan(&u.ID, &u.Username, &u.Avatar, &u.FollowersCount, &u.FollowingCount, &u.FriendsCount, &u.IsFollowing, &u.IsFriend)
 		if err != nil {
 			return nil, err
 		}
@@ -172,13 +177,13 @@ func (m *UserModel) GetUsersForRelation(ctx context.Context, relation Relation, 
 	case RelationFollowing:
 		stmt = `
 		SELECT id, username, avatar FROM users u
-		INNER JOIN follow_relations fr ON
+		JOIN follow_relations fr ON
 		fr.follower_id = $1 AND fr.following_id = u.id
 		`
 	case RelationFollowers:
 		stmt = `
 		SELECT id, username, avatar FROM users u
-		INNER JOIN follow_relations fr ON
+		JOIN follow_relations fr ON
 		fr.follower_id = u.id AND fr.following_id = $1
 		`
 	}

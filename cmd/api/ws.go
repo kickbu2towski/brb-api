@@ -11,7 +11,7 @@ import (
 )
 
 type BroadcastMessage struct {
-	BroadcastTo []int       `json:"broadcastTo"`
+	BroadcastTo []int          `json:"broadcastTo"`
 	Data        map[string]any `json:"data"`
 }
 
@@ -159,7 +159,7 @@ func (c *Client) read() {
 			c.hub.broadcast <- &BroadcastMessage{
 				BroadcastTo: e.BroadcastTo,
 				Data: map[string]any{
-					"name":   "PublishEvent",
+					"name":    "PublishEvent",
 					"payload": m,
 				},
 			}

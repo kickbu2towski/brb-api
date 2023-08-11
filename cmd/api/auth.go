@@ -97,9 +97,9 @@ func (app *application) callbackHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var userInfo struct {
-		ID            string `json:"id"`
-		Name          string `json:"name"`
-		Picture       string `json:"picture"`
+		ID      string `json:"id"`
+		Name    string `json:"name"`
+		Picture string `json:"picture"`
 	}
 
 	err = json.NewDecoder(res.Body).Decode(&userInfo)
@@ -109,9 +109,9 @@ func (app *application) callbackHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	user := &data.User{
-		GID:           userInfo.ID,
-		Username:      userInfo.Name,
-		Avatar:        userInfo.Picture,
+		GID:      userInfo.ID,
+		Username: userInfo.Name,
+		Avatar:   userInfo.Picture,
 	}
 
 	userID, err := app.models.Users.AddUser(context.Background(), user)

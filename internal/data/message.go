@@ -12,7 +12,7 @@ type Message struct {
 	ID        string      `json:"id"`
 	Content   string      `json:"content"`
 	DmID      int         `json:"dm_id"`
-	UserID    int      `json:"user_id,omitempty"`
+	UserID    int         `json:"user_id,omitempty"`
 	CreatedAt time.Time   `json:"created_at"`
 	IsDeleted bool        `json:"is_deleted"`
 	IsEdited  bool        `json:"is_edited"`
@@ -21,7 +21,7 @@ type Message struct {
 
 type MessageResp struct {
 	Message
-	User      BasicUserResp       `json:"user"`
+	User      BasicUserResp    `json:"user"`
 	Reactions map[string][]int `json:"reactions"`
 }
 
