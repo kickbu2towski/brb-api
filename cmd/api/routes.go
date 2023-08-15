@@ -40,6 +40,14 @@ func (app *application) routes() http.Handler {
 	router.Handler(http.MethodGet, "/v1/me/followers", authMw.Then(http.HandlerFunc(app.getUsersForRelationHandler)))
 	router.Handler(http.MethodGet, "/v1/me/dms", authMw.Then(http.HandlerFunc(app.getUserDMList)))
 
+	// rooms
+	router.Handler(http.MethodGet, "/v1/rooms", http.HandlerFunc(app.GetRoomsHandler))
+	router.Handler(http.MethodPost, "/v1/rooms", authMw.Then(http.HandlerFunc(app.CreateRoomHandler)))
+	router.Handler(http.MethodPut, "/v1/room/:roomID", authMw.Then(http.HandlerFunc(app.UpdateRoomHandler)))
+	router.Handler(http.MethodGet, "/v1/room/:roomID", http.HandlerFunc(app.GetRoomHandler))
+	router.Handler(http.MethodPost, "/v1/room/:roomID/token", authMw.Then(http.HandlerFunc(app.CreateRoomTokenHandler)))
+	router.Handler(http.MethodPost, "/v1/rooms/events", http.HandlerFunc(app.LiveKitWebhookHandler))
+
 	// websocket
 	router.Handler(http.MethodGet, "/ws", authMw.Then(http.HandlerFunc(app.wsHandler)))
 

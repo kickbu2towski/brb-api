@@ -11,8 +11,9 @@ import (
 )
 
 type BroadcastMessage struct {
-	BroadcastTo []int          `json:"broadcastTo"`
+	BroadcastTo []int          `json:"-"`
 	Data        map[string]any `json:"data"`
+	toEveryone  bool           `json:"-"`
 }
 
 type Hub struct {
@@ -33,7 +34,10 @@ func (h *Hub) run() {
 	for {
 		msg := <-h.broadcast
 		for client := range h.clients {
-			allowed := Includes(msg.BroadcastTo, client.user.ID)
+			allowed := msg.toEveryone
+			if !allowed {
+				allowed = Includes(msg.BroadcastTo, client.user.ID)
+			}
 			if allowed {
 				err := client.conn.WriteJSON(msg)
 				if err != nil {
@@ -175,6 +179,7 @@ func (c *Client) read() {
 				BroadcastTo: e.BroadcastTo,
 				Data: map[string]any{
 					"name":    "PublishEvent",
+					"type":    "DM",
 					"payload": m,
 				},
 			}

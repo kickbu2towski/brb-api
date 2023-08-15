@@ -12,14 +12,16 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kickbu2towski/brb-api/internal/data"
+	lksdk "github.com/livekit/server-sdk-go"
 )
 
 type application struct {
-	logger *log.Logger
-	config config
-	pool   *pgxpool.Pool
-	models *data.Models
-	hub    *Hub
+	logger    *log.Logger
+	config    config
+	pool      *pgxpool.Pool
+	models    *data.Models
+	hub       *Hub
+	lkRoomSvc *lksdk.RoomServiceClient
 }
 
 type config struct {
@@ -33,6 +35,11 @@ type config struct {
 		clientID     string
 		clientSecret string
 		redirectURL  string
+	}
+	livekit struct {
+		host   string
+		key    string
+		secret string
 	}
 }
 
@@ -48,12 +55,15 @@ func main() {
 	}
 
 	models := data.NewModels(pool)
+	lkRoomSvc := lksdk.NewRoomServiceClient(cfg.livekit.host, cfg.livekit.key, cfg.livekit.secret)
+
 	app := application{
-		logger: logger,
-		config: cfg,
-		pool:   pool,
-		models: models,
-		hub:    NewHub(models),
+		logger:    logger,
+		config:    cfg,
+		pool:      pool,
+		models:    models,
+		hub:       NewHub(models),
+		lkRoomSvc: lkRoomSvc,
 	}
 
 	server := &http.Server{
@@ -96,6 +106,10 @@ func parseFlags(cfg *config) {
 	flag.StringVar(&cfg.google.clientID, "google-client-id", os.Getenv("GOOGLE_CLIENT_ID"), "Google Client ID")
 	flag.StringVar(&cfg.google.clientSecret, "google-cient-secret", os.Getenv("GOOGLE_CLIENT_SECRET"), "Google Client Secret")
 	flag.StringVar(&cfg.google.redirectURL, "google-redirect-url", os.Getenv("GOOGLE_REDIRECT_URL"), "Google Redirect URL")
+
+	flag.StringVar(&cfg.livekit.host, "lk-host", "http://localhost:7880", "LiveKit Host")
+	flag.StringVar(&cfg.livekit.key, "lk-key", os.Getenv("LK_KEY"), "LiveKit Key")
+	flag.StringVar(&cfg.livekit.secret, "lk-secret", os.Getenv("LK_SECRET"), "LiveKit Secret")
 
 	cfg.cors.allowedOrigins = []string{"http://localhost:3000"}
 	flag.Func("allowed-origins", "A list of allowed origins", func(s string) error {

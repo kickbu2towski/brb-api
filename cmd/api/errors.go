@@ -32,6 +32,11 @@ func (app *application) notFoundResponse(w http.ResponseWriter, r *http.Request)
 	app.errorResponse(w, r, http.StatusNotFound, message)
 }
 
+func (app *application) forbiddenResponse(w http.ResponseWriter, r *http.Request) {
+	message := "you are not authorized to perform this action"
+	app.errorResponse(w, r, http.StatusForbidden, message)
+}
+
 func (app *application) methodNotAllowedResponse(w http.ResponseWriter, r *http.Request) {
 	message := fmt.Sprintf("the %s method is not allowed on this resource", r.Method)
 	app.errorResponse(w, r, http.StatusNotFound, message)
